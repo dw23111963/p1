@@ -1,7 +1,7 @@
-﻿using Sstem;
+﻿using System;
 using System.Windows;
 using System.Windows.Input;
-using System.windows.Controls;
+using System.Windows.Controls;
 
 class Myprg
 {
@@ -20,7 +20,7 @@ class Myprg
         app.Run(win);
 
     }
-    static void WindowOnMouseDown(object sender, MouseButtonEverArgs args)
+    static void WindowOnMouseDown(object sender, MouseButtonEventArgs args)
     {
         double v, t, a;
         Console.WriteLine("Введите v: ");
@@ -45,7 +45,7 @@ class Myprg
         p.gde(t);
 
         Window win = sender as Window;
-        Message.Show(p.x.ToString() + " " + p.y.ToString(), "Start");
+        MessageBox.Show(p.x.ToString() + " " + p.y.ToString(), "Start");
 
     }
 }
