@@ -1,0 +1,244 @@
+using System;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Collections.Generic;
+
+namespace FlightSimulatorWPF
+{
+    public class Windows : Window
+    {
+        public static TextBox tb;
+        private Button simulateButton;
+        private TextBox velocityTextBox;
+        private TextBox angleTextBox;
+        private TextBox timeTextBox;
+        private TextBlock resultsText;
+        private List<Obstacle> obstacles;
+        private List<Pig> pigs;
+
+        [STAThread]
+        public static void Main()
+        {
+            Application app = new Application();
+            Windows win = new Windows();
+            app.Run(win);
+        }
+
+        public Windows()
+        {
+            InitializeComponents();
+            InitializeSimulationObjects();
+        }
+
+        private void InitializeComponents()
+        {
+            Title = "Bird Flight Simulator";
+            Width = 500;
+            Height = 400;
+
+            var grid = new Grid();
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition());
+
+            // Input fields
+            velocityTextBox = new TextBox { Margin = new Thickness(5) };
+            angleTextBox = new TextBox { Margin = new Thickness(5) };
+            timeTextBox = new TextBox { Margin = new Thickness(5) };
+
+            Grid.SetRow(new Label { Content = "Velocity (m/s):" }, 0);
+            Grid.SetRow(velocityTextBox, 0);
+            Grid.SetColumn(velocityTextBox, 1);
+
+            Grid.SetRow(new Label { Content = "Angle (degrees):" }, 1);
+            Grid.SetRow(angleTextBox, 1);
+            Grid.SetColumn(angleTextBox, 1);
+
+            Grid.SetRow(new Label { Content = "Time (s):" }, 2);
+            Grid.SetRow(timeTextBox, 2);
+            Grid.SetColumn(timeTextBox, 1);
+
+            // Simulate button
+            simulateButton = new Button 
+            { 
+                Content = "Simulate Flight",
+                Margin = new Thickness(5),
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
+            simulateButton.Click += WindowsOnMouseDown;
+            Grid.SetRow(simulateButton, 3);
+
+            // Results display
+            resultsText = new TextBlock 
+            { 
+                Margin = new Thickness(10),
+                TextWrapping = TextWrapping.Wrap
+            };
+            Grid.SetRow(resultsText, 4);
+
+            grid.Children.Add(velocityTextBox);
+            grid.Children.Add(angleTextBox);
+            grid.Children.Add(timeTextBox);
+            grid.Children.Add(simulateButton);
+            grid.Children.Add(resultsText);
+
+            Content = grid;
+            tb = velocityTextBox; // Maintaining original reference
+            tb.Focus();
+        }
+
+        private void InitializeSimulationObjects()
+        {
+            obstacles = new List<Obstacle>
+            {
+                new Obstacle("Wood", 30),
+                new Obstacle("Stone", 80)
+            };
+
+            pigs = new List<Pig>
+            {
+                new Pig("Green Pig", 50),
+                new Pig("Big Pig", 100)
+            };
+        }
+
+        private void WindowsOnMouseDown(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                double v = Convert.ToDouble(velocityTextBox.Text);
+                double a = Convert.ToDouble(angleTextBox.Text);
+                double t = Convert.ToDouble(timeTextBox.Text);
+
+                Bird p = new Bird();
+                p.fall += p.f;
+                p.fall += p.gg;
+
+                p.start(0, 0, v, a);
+
+                resultsText.Text = $"Initial Position:\nX: {p.x0:F2}m, Y: {p.y0:F2}m\n" +
+                                  $"Initial Velocity: {v:F2}m/s at {a:F2}°\n" +
+                                  $"Flight Duration: {p.tp:F2}s\n";
+
+                p.gde(t);
+
+                // Calculate impact results
+                double impactForce = p.CalculateImpactForce();
+                var impactResults = new List<string>();
+
+                foreach (var obstacle in obstacles)
+                {
+                    bool destroyed = obstacle.TakeDamage(impactForce);
+                    impactResults.Add($"Obstacle ({obstacle.Material}): " +
+                                    $"{(destroyed ? "DESTROYED" : "Damaged")}");
+                }
+
+                foreach (var pig in pigs)
+                {
+                    bool killed = pig.TakeDamage(impactForce);
+                    impactResults.Add($"{pig.Name}: {(killed ? "ELIMINATED" : "Injured")}");
+                }
+
+                resultsText.Text += $"\nAt time {t:F2}s:\n" +
+                                  $"Position: X = {p.x:F2}m, Y = {p.y:F2}m\n" +
+                                  $"Impact Force: {impactForce:F2}N\n" +
+                                  "Impact Results:\n" + string.Join("\n", impactResults);
+            }
+            catch (FormatException)
+            {
+                MessageBox.Show("Please enter valid numbers!", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+    }
+
+    public class Bird
+    {
+        public double x0, y0, vx0, vy0, x, y, tp, g = 9.81, t;
+
+        public void start(double x, double y, double v, double a)
+        {
+            x0 = x;
+            y0 = y;
+            a = Math.PI * a / 180.0;
+            vx0 = v * Math.Cos(a);
+            vy0 = v * Math.Sin(a);
+            tp = 2 * vy0 / g;
+        }
+
+        public delegate void BirdFly();
+        public event BirdFly fall;
+
+        public void gde(double t)
+        {
+            this.t = t;
+            if (t >= tp)
+                t = tp;
+            
+            x = x0 + vx0 * t;
+            y = y0 + vy0 * t - 0.5 * g * t * t;
+            
+            if (fall != null)
+                fall();
+        }
+
+        public void f()
+        {
+            string s = $"Position at time {t:F2}s: X = {x:F2}m, Y = {y:F2}m";
+            MessageBox.Show(s, "Flight Position");
+        }
+
+        public void gg()
+        {
+            MessageBox.Show("Hello from flight simulation!", "Greeting");
+        }
+
+        public double CalculateImpactForce(double contactTime = 0.1)
+        {
+            double finalSpeed = Math.Sqrt(vx0 * vx0 + (vy0 - g * t) * (vy0 - g * t));
+            return finalSpeed / contactTime;
+        }
+    }
+
+    public class Obstacle
+    {
+        public string Material { get; }
+        public int Durability { get; private set; }
+
+        public Obstacle(string material, int durability)
+        {
+            Material = material;
+            Durability = durability;
+        }
+
+        public bool TakeDamage(double force)
+        {
+            Durability -= (int)force;
+            return Durability <= 0;
+        }
+    }
+
+    public class Pig
+    {
+        public string Name { get; }
+        public int Health { get; private set; }
+
+        public Pig(string name, int health)
+        {
+            Name = name;
+            Health = health;
+        }
+
+        public bool TakeDamage(double force)
+        {
+            Health -= (int)force;
+            return Health <= 0;
+        }
+    }
+}
