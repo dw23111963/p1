@@ -1,0 +1,368 @@
+using System;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Collections.Generic;
+
+namespace FlightSimulatorWPF
+{
+    public class Windows : Window
+    {
+        public static TextBox tb;
+        private Button simulateButton;
+        private Button resetButton;
+        private TextBox velocityTextBox;
+        private TextBox angleTextBox;
+        private TextBox timeTextBox;
+        private TextBlock resultsText;
+        private List<Obstacle> obstacles;
+        private List<Pig> pigs;
+
+        [STAThread]
+        public static void Main()
+        {
+            Application app = new Application();
+            Windows win = new Windows();
+            app.Run(win);
+        }
+
+        public Windows()
+        {
+            InitializeComponents();
+            InitializeSimulationObjects();
+            ShowWelcomeDialog();
+        }
+
+        private void InitializeComponents()
+        {
+            Title = "Bird Flight Simulator";
+            Width = 500;
+            Height = 400;
+
+            var grid = new Grid();
+            grid.ColumnDefinitions.Add(new ColumnDefinition());
+            grid.ColumnDefinitions.Add(new ColumnDefinition());
+            
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition());
+
+            // Input fields
+            velocityTextBox = new TextBox { Margin = new Thickness(5) };
+            angleTextBox = new TextBox { Margin = new Thickness(5) };
+            timeTextBox = new TextBox { Margin = new Thickness(5) };
+
+            Grid.SetRow(new Label { Content = "Velocity (m/s):" }, 0);
+            Grid.SetRow(velocityTextBox, 0);
+            Grid.SetColumn(velocityTextBox, 1);
+
+            Grid.SetRow(new Label { Content = "Angle (degrees):" }, 1);
+            Grid.SetRow(angleTextBox, 1);
+            Grid.SetColumn(angleTextBox, 1);
+
+            Grid.SetRow(new Label { Content = "Time (s):" }, 2);
+            Grid.SetRow(timeTextBox, 2);
+            Grid.SetColumn(timeTextBox, 1);
+
+            // Simulate button
+            simulateButton = new Button 
+            { 
+                Content = "Simulate Flight",
+                Margin = new Thickness(5),
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
+            simulateButton.Click += WindowsOnMouseDown;
+            Grid.SetRow(simulateButton, 3);
+            Grid.SetColumnSpan(simulateButton, 2);
+
+            // Reset button
+            resetButton = new Button
+            {
+                Content = "Reset Simulation",
+                Margin = new Thickness(5),
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
+            resetButton.Click += ResetSimulation;
+            Grid.SetRow(resetButton, 4);
+            Grid.SetColumnSpan(resetButton, 2);
+
+            // Results display
+            resultsText = new TextBlock 
+            { 
+                Margin = new Thickness(10),
+                TextWrapping = TextWrapping.Wrap
+            };
+            Grid.SetRow(resultsText, 5);
+            Grid.SetColumnSpan(resultsText, 2);
+
+            grid.Children.Add(velocityTextBox);
+            grid.Children.Add(angleTextBox);
+            grid.Children.Add(timeTextBox);
+            grid.Children.Add(simulateButton);
+            grid.Children.Add(resetButton);
+            grid.Children.Add(resultsText);
+
+            Content = grid;
+            tb = velocityTextBox;
+            tb.Focus();
+        }
+
+        private void ShowWelcomeDialog()
+        {
+            MessageBoxResult result = MessageBox.Show(
+                "Welcome to Bird Flight Simulator!\n\n" +
+                "Instructions:\n" +
+                "1. Enter velocity, angle, and time values\n" +
+                "2. Click 'Simulate Flight' to see the results\n" +
+                "3. View impact damage to obstacles and pigs\n\n" +
+                "Would you like to see a quick example?",
+                "Welcome",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Information);
+
+            if (result == MessageBoxResult.Yes)
+            {
+                velocityTextBox.Text = "20";
+                angleTextBox.Text = "45";
+                timeTextBox.Text = "2";
+                MessageBox.Show("Example values have been filled in.\nClick 'Simulate Flight' to run the simulation.", 
+                    "Example Ready", 
+                    MessageBoxButton.OK, 
+                    MessageBoxImage.Information);
+            }
+        }
+
+        private void InitializeSimulationObjects()
+        {
+            obstacles = new List<Obstacle>
+            {
+                new Obstacle("Wood", 30),
+                new Obstacle("Stone", 80)
+            };
+
+            pigs = new List<Pig>
+            {
+                new Pig("Green Pig", 50),
+                new Pig("Big Pig", 100)
+            };
+        }
+
+        private void WindowsOnMouseDown(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                double v = Convert.ToDouble(velocityTextBox.Text);
+                double a = Convert.ToDouble(angleTextBox.Text);
+                double t = Convert.ToDouble(timeTextBox.Text);
+
+                if (v <= 0 || a <= 0 || t <= 0)
+                {
+                    MessageBox.Show("All values must be positive numbers!", 
+                        "Invalid Input", 
+                        MessageBoxButton.OK, 
+                        MessageBoxImage.Warning);
+                    return;
+                }
+
+                if (a >= 90)
+                {
+                    MessageBox.Show("Angle must be less than 90 degrees for realistic simulation.", 
+                        "Invalid Angle", 
+                        MessageBoxButton.OK, 
+                        MessageBoxImage.Warning);
+                    return;
+                }
+
+                // Confirm simulation start
+                MessageBoxResult confirm = MessageBox.Show(
+                    $"Start simulation with:\nVelocity: {v} m/s\nAngle: {a}°\nTime: {t} s?", 
+                    "Confirm Simulation", 
+                    MessageBoxButton.YesNo, 
+                    MessageBoxImage.Question);
+
+                if (confirm != MessageBoxResult.Yes)
+                    return;
+
+                Bird p = new Bird();
+                p.fall += p.f;
+                p.fall += p.gg;
+
+                p.start(0, 0, v, a);
+
+                resultsText.Text = $"Initial Position:\nX: {p.x0:F2}m, Y: {p.y0:F2}m\n" +
+                                  $"Initial Velocity: {v:F2}m/s at {a:F2}°\n" +
+                                  $"Flight Duration: {p.tp:F2}s\n";
+
+                p.gde(t);
+
+                // Calculate impact results
+                double impactForce = p.CalculateImpactForce();
+                var impactResults = new List<string>();
+
+                foreach (var obstacle in obstacles)
+                {
+                    bool destroyed = obstacle.TakeDamage(impactForce);
+                    impactResults.Add($"Obstacle ({obstacle.Material}): " +
+                                    $"{(destroyed ? "DESTROYED" : "Damaged")}");
+                }
+
+                foreach (var pig in pigs)
+                {
+                    bool killed = pig.TakeDamage(impactForce);
+                    impactResults.Add($"{pig.Name}: {(killed ? "ELIMINATED" : "Injured")}");
+                }
+
+                resultsText.Text += $"\nAt time {t:F2}s:\n" +
+                                  $"Position: X = {p.x:F2}m, Y = {p.y:F2}m\n" +
+                                  $"Impact Force: {impactForce:F2}N\n" +
+                                  "Impact Results:\n" + string.Join("\n", impactResults);
+
+                // Show summary dialog
+                ShowSummaryDialog(impactResults, impactForce);
+            }
+            catch (FormatException)
+            {
+                MessageBox.Show("Please enter valid numbers!", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void ShowSummaryDialog(List<string> impactResults, double impactForce)
+        {
+            string summary = $"Simulation Complete!\n\nImpact Force: {impactForce:F2}N\n\nDamage Report:\n";
+            summary += string.Join("\n", impactResults);
+
+            MessageBox.Show(summary, "Simulation Results", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        private void ResetSimulation(object sender, RoutedEventArgs e)
+        {
+            MessageBoxResult result = MessageBox.Show(
+                "Are you sure you want to reset the simulation?\nAll current values will be cleared.",
+                "Confirm Reset",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (result == MessageBoxResult.Yes)
+            {
+                velocityTextBox.Text = "";
+                angleTextBox.Text = "";
+                timeTextBox.Text = "";
+                resultsText.Text = "";
+                tb.Focus();
+
+                // Reinitialize objects to restore their original state
+                InitializeSimulationObjects();
+                
+                MessageBox.Show("Simulation has been reset.", 
+                    "Reset Complete", 
+                    MessageBoxButton.OK, 
+                    MessageBoxImage.Information);
+            }
+        }
+    }
+
+    public class Bird
+    {
+        public double x0, y0, vx0, vy0, x, y, tp, g = 9.81, t;
+
+        public void start(double x, double y, double v, double a)
+        {
+            x0 = x;
+            y0 = y;
+            a = Math.PI * a / 180.0;
+            vx0 = v * Math.Cos(a);
+            vy0 = v * Math.Sin(a);
+            tp = 2 * vy0 / g;
+        }
+
+        public delegate void BirdFly();
+        public event BirdFly fall;
+
+        public void gde(double t)
+        {
+            this.t = t;
+            if (t >= tp)
+                t = tp;
+            
+            x = x0 + vx0 * t;
+            y = y0 + vy0 * t - 0.5 * g * t * t;
+            
+            if (fall != null)
+                fall();
+        }
+
+        public void f()
+        {
+            string s = $"Position at time {t:F2}s: X = {x:F2}m, Y = {y:F2}m";
+            MessageBox.Show(s, "Flight Position", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        public void gg()
+        {
+            MessageBox.Show("Calculating trajectory...", "Flight Simulation", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        public double CalculateImpactForce(double contactTime = 0.1)
+        {
+            double finalSpeed = Math.Sqrt(vx0 * vx0 + (vy0 - g * t) * (vy0 - g * t));
+            return finalSpeed / contactTime;
+        }
+    }
+
+    public class Obstacle
+    {
+        public string Material { get; }
+        public int Durability { get; private set; }
+        private readonly int initialDurability;
+
+        public Obstacle(string material, int durability)
+        {
+            Material = material;
+            Durability = durability;
+            initialDurability = durability;
+        }
+
+        public bool TakeDamage(double force)
+        {
+            Durability -= (int)force;
+            return Durability <= 0;
+        }
+
+        public void Reset()
+        {
+            Durability = initialDurability;
+        }
+    }
+
+    public class Pig
+    {
+        public string Name { get; }
+        public int Health { get; private set; }
+        private readonly int initialHealth;
+
+        public Pig(string name, int health)
+        {
+            Name = name;
+            Health = health;
+            initialHealth = health;
+        }
+
+        public bool TakeDamage(double force)
+        {
+            Health -= (int)force;
+            return Health <= 0;
+        }
+
+        public void Reset()
+        {
+            Health = initialHealth;
+        }
+    }
+}
